@@ -11,17 +11,22 @@ st.set_page_config(
 
 # ---------- HELPER FUNCTIONS ----------
 @st.cache_data
-def load_data(path_or_file):
-    df = pd.read_csv(path_or_file)
+def load_data(file):
+    df = pd.read_csv(file)
     # Ensure first column is Department, rest are years
     df.rename(columns={df.columns[0]: "Department"}, inplace=True)
+
     # Keep only numeric year columns
     year_cols = [c for c in df.columns if c != "Department"]
+
     # Melt into long format: Department | Year | Budget
-    long_df = df.melt(id_vars="Department",
-                      value_vars=year_cols,
-                      var_name="Year",
-                      value_name="Budget")
+    long_df = df.melt(
+        id_vars="Department",
+        value_vars=year_cols,
+        var_name="Year",
+        value_name="Budget"
+    )
+
     long_df["Year"] = long_df["Year"].astype(str)
     long_df["Budget"] = pd.to_numeric(long_df["Budget"], errors="coerce")
     long_df.dropna(subset=["Budget"], inplace=True)
@@ -43,19 +48,22 @@ st.sidebar.title("⚙️ Controls")
 
 st.sidebar.markdown(
     "Upload your **Department_Budget_2014_to_2025.csv** file "
-    "or use the default path."
+    "to analyze department-wise budget."
 )
 
 uploaded = st.sidebar.file_uploader(
-    "Upload CSV", type=["csv"], help="Columns: Department, 2014, 2015, ... 2025"
+    "Upload CSV",
+    type=["csv"],
+    help="Columns example: Department, 2014, 2015, ... 2025"
 )
 
-default_path = "Department_Budget_2014_to_2025.csv"
+# 👉 IMPORTANT: If no file uploaded, stop app gracefully
+if uploaded is None:
+    st.warning("Please upload your budget CSV file from the sidebar to start analysis.")
+    st.stop()
 
-if uploaded is not None:
-    df, long_df, year_cols = load_data(uploaded)
-else:
-    df, long_df, year_cols = load_data(default_path)
+# Load data from uploaded file
+df, long_df, year_cols = load_data(uploaded)
 
 min_year, max_year = min(year_cols), max(year_cols)
 
@@ -72,20 +80,21 @@ selected_years = [str(y) for y in range(year_range[0], year_range[1] + 1)]
 filtered_long = long_df[long_df["Year"].isin(selected_years)]
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("Made from your **PySpark budget project** and extended with:")
+st.sidebar.markdown("Dashboard features:")
 st.sidebar.markdown(
-"- Interactive filters\n"
-"- Department comparison\n"
+"- Interactive year filter\n"
+"- Department-wise analysis\n"
+"- Comparison view\n"
 "- Growth analytics\n"
-"- Download options"
+"- Download filtered data"
 )
 
 # ---------- MAIN TITLE ----------
 st.title("📊 Real-Time Budget Analysis of Government of India Departments")
 
 st.caption(
-    "Interactive dashboard built with Streamlit · Data: Department-wise budget "
-    "allocations (₹ Crores), 2014–2025."
+    "Interactive dashboard built with Streamlit · "
+    "Data: Department-wise budget allocations (₹ Crores)."
 )
 
 # ---------- TABS ----------
@@ -174,9 +183,8 @@ with tab_dept:
     st.markdown(f"### {dept}")
 
     # growth metrics using full year_cols (not only filtered)
-    start, end, abs_change, pct_change = compute_growth(
-        dept_data_wide.set_index("Department").loc[dept], year_cols
-    )
+    row = dept_data_wide.set_index("Department").loc[dept]
+    start, end, abs_change, pct_change = compute_growth(row, year_cols)
 
     col_a.metric(
         "First Year Budget (₹ Cr)",
@@ -260,20 +268,24 @@ with tab_compare:
 
 # ---------- ABOUT TAB ----------
 with tab_info:
-    st.subheader("Why the Union Budget Matters")
+    st.subheader("About This Budget Dashboard")
 
     st.markdown(
         """
-From your original project, the key roles of the Government of India budget include: :contentReference[oaicite:1]{index=1}  
+This Streamlit app visualizes **department-wise Union Budget allocations**  
+using your uploaded CSV file.
 
-1. **Economic planning and stability** – guiding growth, controlling inflation, and maintaining financial stability.  
-2. **Resource allocation** – distributing funds across sectors like agriculture, defence, education, and health.  
-3. **Social welfare & development** – supporting schemes for poverty reduction, employment, and inclusive growth.  
-4. **Infrastructure & investment** – funding public works and capital projects to boost economic activity.  
-5. **Fiscal responsibility & transparency** – presenting clear revenue and expenditure data to ensure accountability.  
+**Suggested CSV format:**
 
-This app extends your PySpark + Matplotlib analysis into an **interactive Streamlit dashboard**  
-where users can explore trends, compare departments, and download filtered data.
+- First column: `Department`
+- Next columns: yearly budget values, e.g. `2014, 2015, 2016, ... 2025`
+- Values in ₹ Crores (or any consistent unit)
+
+You can:
+- Explore **overall trends**
+- Analyze a **single department**
+- **Compare** budgets of multiple departments
+- **Download** filtered data
         """
     )
 
